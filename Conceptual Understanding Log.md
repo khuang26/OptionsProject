@@ -12,6 +12,16 @@ Improvements for efficiency/cleanliness:
 - Use a weighted average for RF rate based on trade_qty
 - Combine identical put-call pairs by summing the trade quantities
 
+Outliers observations ([original data](https://docs.google.com/spreadsheets/d/1BwWRdstB8Nl51dN8z9olRbkPB8Ps4Gcr2hL_aUru6Sc/edit?usp=sharing)): 
+- -1.89% (Rows 1448, 15004) --> occured within a second
+- -1.66% (Rows 11079, 11104-11107, 11109-11110, 11112, 11166, 24384) --> small call value
+- -0.63% (Rows 1448, 15002, 15008, 15017, 15153, 15159) --> no obvious pattern, but there is a cluster of 3 transactions
+- 48.45% (Rows 1782, 15548) --> within first 5 minutes of market opening
+- 44.65% (Rows 1782, 15549) --> within first 10 minutes of market opening
+- 40.22% (Rows 1782, 15841, 15845) --> 1782 again?
+
+Possible explanation: 
+- All caused by a few mispricings (1448, 1782, etc)
 
 
 # Implied Volatility
