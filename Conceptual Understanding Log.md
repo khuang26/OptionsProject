@@ -24,4 +24,6 @@ Conceptual Understanding:
 
 Things to learn: 
 - Coding an iterative process like Newton-Raphson
+  - Learning how derivatives (math) work in Python
+- How to code a cumulative distribution function
 - (Potentially: Matplotlib)
