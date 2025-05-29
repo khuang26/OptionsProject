@@ -36,6 +36,18 @@ class OptionsData:
 			on=['strike_price', 'year_to_expiration', 'u_trade_px'], # Columns that need to match
 			suffixes=('_call', '_put')
 		)
+		
+		self.__pairs = self.__pairs.groupby([
+			'strike_price', 
+			'year_to_expiration', 
+			'u_trade_px', 
+			'trade_price_call', 
+			'trade_price_put'
+		], as_index=False).agg({
+			'trade_qty_call': 'sum',
+			'trade_qty_put': 'sum'
+		})
+		
 		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
 	
 	def __printPairs(self): 
