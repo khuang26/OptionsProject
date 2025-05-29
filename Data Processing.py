@@ -21,7 +21,7 @@ def getRate(row):
 
 # Print valid put-call pairs
 def printPairs(): 
-	print(pairs[['strike_price', 'year_to_expiration', 'trade_price_call', 'trade_price_put', 'u_trade_px', 'r']].head())
+	print(pairs.head())
 
 
 # Get avg. interest rate across all corresponding put-call pairs
@@ -30,7 +30,7 @@ def getAvgRate():
 
 # Write to CSV
 def writePairs(): 
-	pairs[['strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price_call', 'trade_price_put', 'rate']].to_csv("Pairs.csv", index=False)
+	pairs.to_csv("Pairs.csv", index=False)
 
 
 
@@ -43,8 +43,8 @@ puts = df[df['is_call'] == 0]
 
 # DataFrame with matching put-call pairs
 pairs = pd.merge(
-    calls,
-    puts,
+    calls[['strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
+    puts[['strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
     on=['strike_price', 'year_to_expiration', 'u_trade_px'], # Columns that need to match
     suffixes=('_call', '_put')
 )
