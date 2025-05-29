@@ -22,6 +22,7 @@ Outliers observations ([original data](https://docs.google.com/spreadsheets/d/1B
 
 Possible explanation: 
 - All caused by a few mispricings (1448, 1782, etc)
+- First may be explained by an algorithm taking advantage of the mispricing
 
 
 # Implied Volatility
