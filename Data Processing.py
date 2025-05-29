@@ -57,6 +57,7 @@ for i in pairs.index:
 
 
 avgRate = getAvgRate()
-print(f"The average risk-free rate across all valid put-call pairs is: {avgRate}")
+rateStDev = pairs['rate'].std()
+print(f"The average risk-free rate across all valid put-call pairs is: {avgRate} and the standard deviation is {rateStDev}")
 
 writePairs()
