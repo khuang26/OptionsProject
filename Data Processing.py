@@ -52,15 +52,11 @@ pairs = pd.merge(
 pairs['rate'] = pairs.apply(getRate, axis = 1) # new column "rate" created in DataFrame; axis = 1 --> checks each row
 
 for i in pairs.index:
-  if pairs.loc[i, 'rate'] < 0:
-    pairs.drop(i, inplace = True)
+	if pairs.loc[i, 'rate'] < 0:
+		pairs.drop(i, inplace = True)
 
 
 avgRate = getAvgRate()
 print(f"The average risk-free rate across all valid put-call pairs is: {avgRate}")
 
 writePairs()
-
-
-print(df.info())      # Original data memory usage
-print(pairs.info())    # Merged data memory usage
