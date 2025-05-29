@@ -16,8 +16,15 @@ class OptionsData:
 	def computeRFRate(self):
 		self.__findPairs()
 		self.__computeSeriesRates()
-		self.setAvgRate(self.__pairs['rate'].mean())
-		self.__rateStDev = self.__pairs['rate'].std()
+		
+		weighted_sum = np.dot(self.__pairs['rate'], self.__pairs['trade_qty'])
+		total_qty = self.__pairs['trade_qty'].sum()
+		weighted_avg_rate = weighted_sum / total_qty
+		self.setAvgRate(weighted_avg_rate)
+
+		weighted_var = ((self.__pairs['rate'] - weighted_avg_rate)**2 * self.__pairs['trade_qty']).sum() / total_qty
+		self.__rateStDev = np.sqrt(weighted_var)
+
 		print(f"The average risk-free rate across all valid put-call pairs is: {self.__avgRate} and the standard deviation is {self.__rateStDev}")
 		self.__writePairs()
 
@@ -29,6 +36,7 @@ class OptionsData:
 			on=['strike_price', 'year_to_expiration', 'u_trade_px'], # Columns that need to match
 			suffixes=('_call', '_put')
 		)
+		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
 	
 	def __printPairs(self): 
 		print(self.__pairs.head())
