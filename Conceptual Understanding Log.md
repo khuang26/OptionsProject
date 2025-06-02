@@ -24,6 +24,8 @@ Outliers observations ([original data](https://docs.google.com/spreadsheets/d/1B
 - 44.65% (Rows 1782, 15549) --> within first 10 minutes of market opening
 - 40.22% (Rows 1782, 15841, 15845) --> 1782 again?
 
+- Almost all of the data points that produce a high risk-free rate are from the first ~10 minutes of the day, after which the risk-free risk rate stabilizes around 14%. 
+
 Possible explanation: 
 - All caused by a few mispricings (1448, 1782, etc)
 - First may be explained by an algorithm taking advantage of the mispricing
