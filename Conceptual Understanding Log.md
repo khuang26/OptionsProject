@@ -21,10 +21,6 @@ Outliers observations ([original data](https://docs.google.com/spreadsheets/d/1B
 - The other extreme outliers are caused by the same few trades. Some of the trades that cause the extreme outliers include the ones executed at 6852.827 seconds, 14896.105 seconds, and 14854.519 seconds. 
 - In response to the trades above, a flurry of response trades occur together (possibly other traders spotting the error?). 
 
-Possible explanation: 
-- All caused by a few mispricings (1448, 1782, etc)
-- First may be explained by an algorithm taking advantage of the mispricing
-
 
 # Implied Volatility
 
