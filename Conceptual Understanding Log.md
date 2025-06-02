@@ -8,6 +8,10 @@ Conceptual Understanding:
 Things to learn: 
 - Pandas library (and associated operations)
 
+Fixing code logic: 
+- Filter put-call pairs to be within a certain time frame
+- Filter put-call pairs that occur too far apart
+
 Improvements for efficiency/cleanliness: 
 - Use a weighted average for RF rate based on trade_qty
 - Combine identical put-call pairs by summing the trade quantities
