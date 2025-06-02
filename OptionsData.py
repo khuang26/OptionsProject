@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import math
 from scipy.stats import norm
 
 
@@ -45,7 +46,7 @@ class OptionsData:
 
 		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
 		
-		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
+		self.__pairs['seconds'] = (self.__pairs['seconds_call'] + self.__pairs['seconds_put'])/2
 
 	def computeRFRate(self, minTime = 0, maxTime = 36000, maxTimeGap = 600):
 		self.__findPairs(minTime, maxTime, maxTimeGap)
@@ -61,6 +62,8 @@ class OptionsData:
 
 		print(f'The average risk-free rate across all valid put-call pairs occurring between {minTime} and {maxTime} seconds with a max time difference of {maxTimeGap} seconds is {self.__avgRate}, and the standard deviation is {self.__rateStDev}.')
 		self.__writePairs()
+
+		return self.__avgRate
 	
 	def __printPairs(self): 
 		print(self.__pairs.head())
@@ -105,7 +108,7 @@ class OptionsData:
 		return oldRate
 
 	@classmethod
-	def calculateBSP(cls, S, K, T, r, sigma, is_call):
+	def __computeBSP(cls, S, K, T, r, sigma, is_call):
 		d1 = (np.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
 		d2 = d1 - sigma * np.sqrt(T)
 
@@ -115,8 +118,63 @@ class OptionsData:
 			price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
 		return price
+	
+	"""def __computeBSPs(self):
+		self.df.['BSP']
+		for idx, row in self.df.iterrows(): """
+			
+	
+	def computeImpliedVolatilities(self, maxIterations = 100, tolerance = 0.005): 
+		self.df['implied_vol'] = np.nan
+		
+		# Creating a lookup table since it's probably not feasible to compute the RF rate for each data point
+		interest_rates = []
+		for i in range(0, 32): 
+			interest_rates.append(self.computeRFRate(900*i, 900*(i+1), 600))
+		
+		for idx, row in self.df.iterrows():
+			S = row['u_trade_px']
+			K = row['strike_price']
+			T = row['year_to_expiration']
+			t = row['seconds']
+			if t>=900: 
+				r = interest_rates[math.floor(t/900) - 1]
+			else: 
+				continue
+			market_price = row['trade_price']
+
+			is_call = row['is_call'] == 1
+
+			iv = 0.3
+
+			error = OptionsData.__computeBSP(S, K, T, r, iv, is_call) - market_price
+
+			# f(x) = BSP - market_price (latter term is constant, so it disappears when taking derivative)
+			def __vega(): 
+				d1 = (np.log(S / K) + (r + iv**2 / 2) * T) / (iv * np.sqrt(T))
+				return S * np.sqrt(T) * norm.pdf(d1)
+
+			i = 0
+			while (abs(error) > tolerance) and (i <= maxIterations): 
+				iv -= error/__vega()
+				error = OptionsData.__computeBSP(S, K, T, r, iv, is_call) - market_price
+			
+
+			self.df.at[idx, 'implied_vol'] = iv
+		
+		print("IV calculations done!")
+
+	def writeDF(self): 
+		self.df.to_csv('OptionsData.csv', index=False)
+
+
+
 
 vale = OptionsData('Options Data - data.csv')
-vale.computeRFRate(0, 36000, 36000)
-for i in range(1, 10): 
+"""for i in range(1, 9): 
 	vale.computeRFRate(3600*(i-1), 3600*i, 600)
+vale.computeRFRate(0, 28800, 28800)
+vale.computeRFRate(0, 28800, 600)"""
+
+vale.computeImpliedVolatilities()
+vale.writeDF()
