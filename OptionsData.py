@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+from scipy.stats import norm
 
 
 class OptionsData: 
@@ -13,8 +13,42 @@ class OptionsData:
 		self.__avgRate = None
 		self.__rateStDev = None
 
-	def computeRFRate(self):
-		self.__findPairs()
+
+	def __findPairs(self, minTime = 0, maxTime = 36000, maxTimeGap = 36000): 
+		self.__pairs = pd.merge(
+			self.__calls[['seconds','symbol', 'strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
+			self.__puts[['seconds', 'symbol', 'strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
+			on=['strike_price', 'year_to_expiration', 'u_trade_px'], # Columns that need to match
+			suffixes=('_call', '_put')
+		)
+		
+		self.__pairs = self.__pairs.groupby([
+			'seconds_call', 
+			'seconds_put',
+			'strike_price', 
+			'year_to_expiration', 
+			'u_trade_px', 
+			'trade_price_call', 
+			'trade_price_put', 
+			'symbol_call', 
+			'symbol_put'
+		], as_index=False).agg({
+			'trade_qty_call': 'sum',
+			'trade_qty_put': 'sum'
+		})
+
+		mask = self.__pairs.apply(
+			lambda row: self.__checkRowValidity(row, minTime, maxTime, maxTimeGap), 
+			axis=1) 
+		self.__pairs = self.__pairs[mask] 
+
+
+		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
+		
+		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
+
+	def computeRFRate(self, minTime = 0, maxTime = 36000, maxTimeGap = 600):
+		self.__findPairs(minTime, maxTime, maxTimeGap)
 		self.__computeSeriesRates()
 		
 		weighted_sum = np.dot(self.__pairs['rate'], self.__pairs['trade_qty'])
@@ -25,36 +59,24 @@ class OptionsData:
 		weighted_var = ((self.__pairs['rate'] - weighted_avg_rate)**2 * self.__pairs['trade_qty']).sum() / total_qty
 		self.__rateStDev = np.sqrt(weighted_var)
 
-		print(f"The average risk-free rate across all valid put-call pairs is: {self.__avgRate} and the standard deviation is {self.__rateStDev}")
+		print(f'The average risk-free rate across all valid put-call pairs occurring between {minTime} and {maxTime} seconds with a max time difference of {maxTimeGap} seconds is {self.__avgRate}, and the standard deviation is {self.__rateStDev}.')
 		self.__writePairs()
-
-
-	def __findPairs(self): 
-		self.__pairs = pd.merge(
-			self.__calls[['strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
-			self.__puts[['strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
-			on=['strike_price', 'year_to_expiration', 'u_trade_px'], # Columns that need to match
-			suffixes=('_call', '_put')
-		)
-		
-		self.__pairs = self.__pairs.groupby([
-			'strike_price', 
-			'year_to_expiration', 
-			'u_trade_px', 
-			'trade_price_call', 
-			'trade_price_put'
-		], as_index=False).agg({
-			'trade_qty_call': 'sum',
-			'trade_qty_put': 'sum'
-		})
-		
-		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
 	
 	def __printPairs(self): 
 		print(self.__pairs.head())
 	
 	def __writePairs(self):
-		self.__pairs.to_csv("Pairs.csv", index=False)
+		self.__pairs.to_csv('Pairs.csv', index=False)
+
+	def __checkRowValidity(self, row, minTime = 0, maxTime = 36000, maxTimeGap = 600):
+		return not (
+			(abs(row['seconds_call'] - row['seconds_put']) > maxTimeGap) 
+			or (row['seconds_call'] > maxTime) 
+			or (row['seconds_put'] > maxTime)
+			or (row['seconds_call'] < minTime)
+			or (row['seconds_put'] < minTime)
+    	)
+
 
 	def __getRate(self, row): 
 		S = row['u_trade_px']
@@ -70,7 +92,9 @@ class OptionsData:
 		return r
 		
 	def __computeSeriesRates(self): 
-		self.__pairs['rate'] = self.__pairs.apply(self.__getRate, axis = 1) # new column "rate" created in DataFrame; axis = 1 --> checks each row
+		self.__pairs['rate'] = self.__pairs.apply(
+			self.__getRate, 
+			axis = 1) 
 
 	def getAvgRate(self):
 		return self.__avgRate
@@ -80,5 +104,19 @@ class OptionsData:
 		self.__avgRate = rate
 		return oldRate
 
-vale = OptionsData("Options Data - data.csv")
-vale.computeRFRate()
+	@classmethod
+	def calculateBSP(cls, S, K, T, r, sigma, is_call):
+		d1 = (np.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
+		d2 = d1 - sigma * np.sqrt(T)
+
+		if is_call: 
+			price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+		else: 
+			price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+		return price
+
+vale = OptionsData('Options Data - data.csv')
+vale.computeRFRate(0, 36000, 36000)
+for i in range(1, 10): 
+	vale.computeRFRate(3600*(i-1), 3600*i, 600)
