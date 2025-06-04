@@ -244,7 +244,7 @@ class OptionsData:
 		d1 = (np.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
 		d2 = d1 - sigma * np.sqrt(T)
 		
-		vega = S * norm.pdf(d1) * np.sqrt(T)
+		vega = 0.01 * S * norm.pdf(d1) * np.sqrt(T)
 		return vega
 	
 	def __computeTheta(self, row): 
@@ -264,9 +264,9 @@ class OptionsData:
 		d2 = d1 - sigma * np.sqrt(T)
 		
 		if is_call: 
-			theta = S * norm.pdf(d1) * sigma / (2*np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(d2)
+			theta = -1/360 * (S * norm.pdf(d1) * sigma / (2*np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(d2))
 		else: 
-			theta = S * norm.pdf(d1) * sigma / (2*np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(-d2)
+			theta = -1/360 * (S * norm.pdf(d1) * sigma / (2*np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(-d2))
 		return theta
 		
 	def __computeRho(self, row): 
@@ -286,9 +286,9 @@ class OptionsData:
 		d2 = d1 - sigma * np.sqrt(T)
 		
 		if is_call: 
-			rho = T * K * np.exp(-r*T) * norm.cdf(d2)
+			rho = 0.01 * T * K * np.exp(-r*T) * norm.cdf(d2)
 		else: 
-			rho = -T * K * np.exp(-r*T) * norm.cdf(-d2)
+			rho = 0.01 * -T * K * np.exp(-r*T) * norm.cdf(-d2)
 		return rho
 
 
