@@ -83,7 +83,7 @@ class OptionsData:
     	)
 
 
-	def __getRate(self, row): 
+	def __computeRate(self, row): 
 		S = row['u_trade_px']
 		K = row['strike_price']
 		C = row['trade_price_call']
@@ -98,7 +98,7 @@ class OptionsData:
 		
 	def __computeSeriesRates(self): 
 		self.__pairs['rate'] = self.__pairs.apply(
-			self.__getRate, 
+			self.__computeRate, 
 			axis = 1) 
 		
 	def computeGreeks(self): 
@@ -117,6 +117,7 @@ class OptionsData:
 		self.df['rho'] = self.df.apply(
 			self.__computeRho, 
 			axis = 1)
+		print("Finished computing Greeks!")
 
 	def getAvgRate(self):
 		return self.__avgRate
@@ -263,9 +264,9 @@ class OptionsData:
 		d2 = d1 - sigma * np.sqrt(T)
 		
 		if is_call: 
-			theta = S * norm.pdf(sigma/(2*np.sqrt(T))) * sigma / (2*np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(d2)
+			theta = S * norm.pdf(d1) * sigma / (2*np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(d2)
 		else: 
-			theta = S * norm.pdf(sigma/(2*np.sqrt(T))) * sigma / (2*np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)
+			theta = S * norm.pdf(d1) * sigma / (2*np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(-d2)
 		return theta
 		
 	def __computeRho(self, row): 
