@@ -41,3 +41,4 @@ Things to learn:
 Conceptual Understanding: 
 1) Take derivative w.r.t. each variable to derive the formula for the Greeks for a Black-Scholes call option.
 2) Use put-call parity to save time to deriving the formula for put options.
+3) Calculations: [PDF](https://drive.google.com/file/d/1CnZQocjsDqbdXk7-iaiu2DVfL0O0fhd2/view?usp=sharing)
