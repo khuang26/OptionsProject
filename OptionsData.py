@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 from scipy.stats import norm
 
 
@@ -15,8 +16,15 @@ class OptionsData:
 		self.__rateStDev = None
 		self.__interest_rates = None
 
+		self.__marketCloseTime = 27000
 
-	def __findPairs(self, minTime = 0, maxTime = 28800, maxTimeGap = 28800): 
+
+	def __findPairs(self, minTime = 0, maxTime = None, maxTimeGap = None): 
+		if (maxTime == None) or (maxTime > self.__marketCloseTime): 
+			maxTime = self.__marketCloseTime
+		if (maxTime == None) or (maxTime > self.__marketCloseTime): 
+			maxTime = self.__marketCloseTime
+
 		self.__pairs = pd.merge(
 			self.__calls[['seconds','symbol', 'strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
 			self.__puts[['seconds', 'symbol', 'strike_price', 'year_to_expiration', 'u_trade_px', 'trade_price', 'trade_qty']],
@@ -38,6 +46,10 @@ class OptionsData:
 			'trade_qty_call': 'sum',
 			'trade_qty_put': 'sum'
 		})
+		
+		self.__pairs['seconds'] = self.__pairs.apply(
+			self.__getMaxTime, 
+			axis = 1)
 
 		mask = self.__pairs.apply(
 			lambda row: self.__checkRowValidity(row, minTime, maxTime, maxTimeGap), 
@@ -46,10 +58,11 @@ class OptionsData:
 
 
 		self.__pairs['trade_qty'] = self.__pairs['trade_qty_call'] + self.__pairs['trade_qty_put']
-		
-		self.__pairs['seconds'] = (self.__pairs['seconds_call'] + self.__pairs['seconds_put'])/2 # Should change this to be max()
 
-	def computeRFRate(self, minTime = 0, maxTime = 28800, maxTimeGap = 600):
+	def computeRFRate(self, minTime = 0, maxTime = None, maxTimeGap = 600):
+		if (maxTime == None) or (maxTime > self.__marketCloseTime): 
+			maxTime = self.__marketCloseTime
+
 		self.__findPairs(minTime, maxTime, maxTimeGap)
 		self.__computeSeriesRates()
 		
@@ -61,7 +74,7 @@ class OptionsData:
 		weighted_var = ((self.__pairs['rate'] - weighted_avg_rate)**2 * self.__pairs['trade_qty']).sum() / total_qty
 		weighted_StDev = np.sqrt(weighted_var)
 
-		if (minTime == 0) and (maxTime == 28800) and (maxTimeGap == 600): 
+		if (minTime == 0) and (maxTime == self.__marketCloseTime) and (maxTimeGap == 600): 
 			self.setAvgRate(weighted_avg_rate)
 			self.__rateStDev = weighted_StDev
 
@@ -73,33 +86,6 @@ class OptionsData:
 	def __writePairs(self):
 		self.__pairs.to_csv('Pairs.csv', index=False)
 
-	def __checkRowValidity(self, row, minTime = 0, maxTime = 28800, maxTimeGap = 600):
-		return not (
-			(abs(row['seconds_call'] - row['seconds_put']) > maxTimeGap) 
-			or (row['seconds_call'] > maxTime) 
-			or (row['seconds_put'] > maxTime)
-			or (row['seconds_call'] < minTime)
-			or (row['seconds_put'] < minTime)
-    	)
-
-
-	def __computeRate(self, row): 
-		S = row['u_trade_px']
-		K = row['strike_price']
-		C = row['trade_price_call']
-		P = row['trade_price_put']
-		T = row['year_to_expiration']
-
-		if T <= 0 or K <= 0 or (S - C + P) <= 0:
-			return np.nan
-
-		r = - (np.log((S - C + P) / K)) / T
-		return r
-		
-	def __computeSeriesRates(self): 
-		self.__pairs['rate'] = self.__pairs.apply(
-			self.__computeRate, 
-			axis = 1) 
 		
 	def computeGreeks(self): 
 		self.df['delta'] = self.df.apply(
@@ -119,6 +105,13 @@ class OptionsData:
 			axis = 1)
 		print("Finished computing Greeks!")
 
+	# Interest Rate Helper Functions
+
+	def __computeSeriesRates(self): 
+		self.__pairs['rate'] = self.__pairs.apply(
+			self.__computeRate, 
+			axis = 1) 
+	
 	def getAvgRate(self):
 		return self.__avgRate
 	
@@ -126,6 +119,35 @@ class OptionsData:
 		oldRate = self.__avgRate
 		self.__avgRate = rate
 		return oldRate
+	
+
+	def __checkRowValidity(self, row, minTime = 0, maxTime = None, maxTimeGap = 600):
+		if (maxTime == None) or (maxTime > self.__marketCloseTime): 
+			maxTime = self.__marketCloseTime
+		
+		return not (
+			(abs(row['seconds_call'] - row['seconds_put']) > maxTimeGap) 
+			or (row['seconds'] > maxTime) 
+			or (row['seconds_call'] < minTime)
+			or (row['seconds_put'] < minTime)
+    	)
+
+	def __getMaxTime(self, row): 
+		return max(row['seconds_call'], row['seconds_put'])
+	
+
+	def __computeRate(self, row): 
+		S = row['u_trade_px']
+		K = row['strike_price']
+		C = row['trade_price_call']
+		P = row['trade_price_put']
+		T = row['year_to_expiration']
+
+		if T <= 0 or K <= 0 or (S - C + P) <= 0:
+			return np.nan
+
+		r = - (np.log((S - C + P) / K)) / T
+		return r
 
 	@classmethod
 	def __computeBSP(cls, S, K, T, r, sigma, is_call):
@@ -138,15 +160,29 @@ class OptionsData:
 			price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
 		return price
-	
-	"""def __computeBSPs(self):
-		self.df.['BSP']
-		for idx, row in self.df.iterrows(): """
 			
-	def __createInterestRateTable(self): 
+	def __createInterestRateTable(self, smoothing_factor = 10): 
+		numBuckets = math.floor(self.__marketCloseTime/900)
+		alpha = smoothing_factor/(numBuckets + 1)
+
+		raw_rates = []
+		for i in range(0, numBuckets): 
+			raw_rates.append(self.computeRFRate(900*i, 900*(i+1), 600))
+
 		self.__interest_rates = []
-		for i in range(0, 32): 
-			self.__interest_rates.append(self.computeRFRate(900*i, 900*(i+1), 600))
+		ema_rate = raw_rates[0] 
+		self.__interest_rates.append(ema_rate)
+		ema_rate = 0.75 * raw_rates[1] + 0.25 * raw_rates[0] # since the first is bound to be more unstable
+		for r in raw_rates[2:]:
+			ema_rate = alpha * r + (1 - alpha) * ema_rate
+			self.__interest_rates.append(ema_rate)
+		
+		"""plt.plot(raw_rates, label='Raw Rates')
+		plt.plot(self.__interest_rates, label='EMA Rates')
+		plt.legend()
+		plt.show()"""
+
+		print("Interest rates calculated!")
 
 	def computeImpliedVolatilities(self, maxIterations = 100, tolerance = 0.005): 
 		self.df['implied_vol'] = np.nan
