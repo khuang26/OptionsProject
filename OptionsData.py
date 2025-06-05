@@ -78,7 +78,7 @@ class OptionsData:
 			self.setAvgRate(weighted_avg_rate)
 			self.__rateStDev = weighted_StDev
 
-		print(f'The average risk-free rate across all valid put-call pairs occurring between {minTime} and {maxTime} seconds with a max time difference of {maxTimeGap} seconds is {weighted_avg_rate}, and the standard deviation is {weighted_StDev}.')
+		# print(f'The average risk-free rate across all valid put-call pairs occurring between {minTime} and {maxTime} seconds with a max time difference of {maxTimeGap} seconds is {weighted_avg_rate}, and the standard deviation is {weighted_StDev}.')
 		self.__writePairs()
 
 		return weighted_avg_rate
@@ -189,6 +189,8 @@ class OptionsData:
 
 		self.__createInterestRateTable()
 
+		self.df['risk_free_rate'] = np.nan
+
 		for idx, row in self.df.iterrows():
 			S = row['u_trade_px']
 			K = row['strike_price']
@@ -196,6 +198,7 @@ class OptionsData:
 			t = row['seconds']
 			if t>=900: 
 				r = self.__interest_rates[math.floor(t/900) - 1]
+				self.df.at[idx,'risk_free_rate'] = r
 			else: 
 				continue
 			market_price = row['trade_price']
@@ -327,6 +330,114 @@ class OptionsData:
 			rho = 0.01 * -T * K * np.exp(-r*T) * norm.cdf(-d2)
 		return rho
 
+
+	# Greeks vs Stock Price
+
+	def plotGreeksVsStockPrice(self, symbol, iv_tolerance = 0.03, rate_tolerance = 0.03): 
+		option_data = self.df[self.df['symbol'] == symbol]
+		
+		if option_data.empty:
+			print(f"No option found with symbol {symbol}")
+			return
+		required_columns = ['delta', 'gamma', 'vega', 'theta', 'rho']
+		missing = [col for col in required_columns if col not in self.df.columns]
+		if missing:
+			print(f"Error: Missing Greek columns: {missing}. Run computeGreeks() first.")
+			return
+		
+		mean_r = option_data['risk_free_rate'].mean()
+		mean_iv = option_data['implied_vol'].mean()
+		K = option_data['strike_price'].iloc[0]
+
+		# Making sure data is comparable
+		mask = (
+        (option_data['risk_free_rate'] >= mean_r * (1-rate_tolerance)) &
+        (option_data['risk_free_rate'] <= mean_r * (1+rate_tolerance)) &
+        (option_data['implied_vol'] >= mean_iv * (1-iv_tolerance)) &
+        (option_data['implied_vol'] <= mean_iv * (1+iv_tolerance))
+		)
+		filtered_data = option_data[mask]
+
+		if filtered_data.empty:
+			print(f"Risk-free rate and implied volatility aren't consistent enough for {symbol}")
+			return
+
+		S = filtered_data['u_trade_px']
+		delta = filtered_data['delta']
+		gamma = filtered_data['gamma']
+		vega = filtered_data['vega']
+		theta = filtered_data['theta']
+		rho = filtered_data['rho']
+
+		S_min = max(S.min(), K * 0.8)  
+		S_max = min(S.max(), K * 1.2)  
+		x_padding = (S_max - S_min) * 0.05
+
+		fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+		fig.suptitle(f'Greeks vs Stock Price for {symbol} (K={K})', fontsize=16)
+
+		# Delta
+		ax = axes[0, 0]
+		ax.scatter(S, delta, alpha=0.6, color='blue')
+		ax.set_title('Delta vs Stock Price')
+		ax.set_xlabel('Stock Price')
+		ax.set_ylabel('Delta')
+		ax.axvline(K, color='red', linestyle='--', label=f'Strike (K={K})')
+		ax.set_xlim(S_min - x_padding, S_max + x_padding)
+		ax.grid(True)
+		ax.legend()
+		
+		# Gamma
+		ax = axes[0, 1]
+		ax.scatter(S, gamma, alpha=0.6, color='green')
+		ax.set_title('Gamma vs Stock Price')
+		ax.set_xlabel('Stock Price')
+		ax.set_ylabel('Gamma')
+		ax.axvline(K, color='red', linestyle='--', label=f'Strike (K={K})')
+		ax.set_xlim(S_min - x_padding, S_max + x_padding)
+		ax.grid(True)
+		
+		# Vega
+		ax = axes[0, 2]
+		ax.scatter(S, vega, alpha=0.6, color='red')
+		ax.set_title('Vega vs Stock Price')
+		ax.set_xlabel('Stock Price')
+		ax.set_ylabel('Vega')
+		ax.axvline(K, color='red', linestyle='--', label=f'Strike (K={K})')
+		ax.set_xlim(S_min - x_padding, S_max + x_padding)
+		ax.grid(True)
+		
+		# Theta
+		ax = axes[1, 0]
+		ax.scatter(S, theta, alpha=0.6, color='purple')
+		ax.set_title('Theta vs Stock Price')
+		ax.set_xlabel('Stock Price')
+		ax.set_ylabel('Theta')
+		ax.axvline(K, color='red', linestyle='--', label=f'Strike (K={K})')
+		ax.set_xlim(S_min - x_padding, S_max + x_padding)
+		ax.grid(True)
+		
+		# Rho
+		ax = axes[1, 1]
+		ax.scatter(S, rho, alpha=0.6, color='orange')
+		ax.set_title('Rho vs Stock Price')
+		ax.set_xlabel('Stock Price')
+		ax.set_ylabel('Rho')
+		ax.axvline(K, color='red', linestyle='--', label=f'Strike (K={K})')
+		ax.set_xlim(S_min - x_padding, S_max + x_padding)
+		ax.grid(True)
+		
+		# Remove the empty subplot (since we have 5 Greeks)
+		fig.delaxes(axes[1, 2])
+		
+		plt.tight_layout()
+		plt.show()
+	
+
+	def showAllGraphs(self): 
+		unique_symbols = self.df['symbol'].unique()
+		for symbol in unique_symbols:
+			self.plotGreeksVsStockPrice(symbol)
 
 	def writeDF(self): 
 		self.df.to_csv('OptionsData.csv', index=False)
