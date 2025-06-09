@@ -54,3 +54,4 @@ Conceptual Understanding:
 1) Choose an option symbol
 2) Filter out a selection of options s.t. the risk-free rate and the implied volatility are close enough
 3) Plot greek vs stock price for each of the 5 greeks
+4) Greeks vs Stock graph: [Desmos](https://www.desmos.com/calculator/zdl7u2bz7f)
