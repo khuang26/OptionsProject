@@ -148,18 +148,6 @@ class OptionsData:
 
 		r = - (np.log((S - C + P) / K)) / T
 		return r
-
-	@classmethod
-	def __computeBSP(cls, S, K, T, r, sigma, is_call):
-		d1 = (np.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
-		d2 = d1 - sigma * np.sqrt(T)
-
-		if is_call: 
-			price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-		else: 
-			price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
-
-		return price
 			
 	def __createInterestRateTable(self, smoothing_factor = 10): 
 		numBuckets = math.floor(self.__marketCloseTime/900)
@@ -439,6 +427,59 @@ class OptionsData:
 		for symbol in unique_symbols:
 			self.plotGreeksVsStockPrice(symbol)
 
+	# Identifying mispricings
+
+	def identifyMisPricings(self, tolerance = 0.05): 
+		self.df['mispriced'] = False
+
+		self.__computeImpliedVolEMA()
+		
+		for idx, row in self.df.iterrows(): 
+			S = row['u_trade_px']
+			K = row['strike_price']
+			T = row['year_to_expiration']
+			r = row['risk_free_rate']
+			is_call = (row['is_call'] == 1)
+			if pd.isna(row['implied_vol']): 
+				continue
+			sigma = row['implied_vol']
+			sigma_ema = row['implied_vol_EMA']
+			if not np.isfinite(sigma): 
+				self.df.at[idx, 'mispriced'] = True
+				continue
+			ratio = (OptionsData.__computeBSP(S, K, T, r, sigma_ema, is_call) - OptionsData.__computeBSP(S, K, T, r, sigma, is_call))/OptionsData.__computeBSP(S, K, T, r, sigma, is_call)
+			if abs(ratio) >= tolerance: 
+				self.df.at[idx, 'mispriced'] = True
+
+		print("Mispricings identified!")
+
+	def __computeImpliedVolEMA(self, alpha = 0.1): 
+		impliedVolEMA = None
+		self.df['implied_vol_EMA'] = None
+
+		for idx, row in self.df.iterrows():
+			if pd.isna(row['implied_vol']): 
+				continue
+			elif impliedVolEMA == None: 
+				impliedVolEMA = row['implied_vol']
+				self.df.at[idx, 'implied_vol_EMA'] = impliedVolEMA
+			elif np.isfinite(row['implied_vol']): 
+				impliedVolEMA = alpha * row['implied_vol'] + (1-alpha) * impliedVolEMA
+				self.df.at[idx, 'implied_vol_EMA'] = impliedVolEMA
+			
+			
+	@classmethod
+	def __computeBSP(cls, S, K, T, r, sigma, is_call):
+		d1 = (np.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
+		d2 = d1 - sigma * np.sqrt(T)
+
+		if is_call: 
+			price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+		else: 
+			price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+		return price
+
 	def writeDF(self): 
 		self.df.to_csv('OptionsData.csv', index=False)
 
@@ -446,11 +487,8 @@ class OptionsData:
 
 
 vale = OptionsData('Options Data - data.csv')
-"""for i in range(1, 9): 
-	vale.computeRFRate(3600*(i-1), 3600*i, 600)
-vale.computeRFRate(0, 28800, 28800)
-vale.computeRFRate(0, 28800, 600)"""
 
 vale.computeImpliedVolatilities()
 vale.computeGreeks()
+vale.identifyMisPricings()
 vale.writeDF()
