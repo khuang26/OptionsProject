@@ -18,6 +18,7 @@ class OptionsData:
 
 		self.__marketCloseTime = 27000
 
+	# Interest rate calculations
 
 	def __findPairs(self, minTime = 0, maxTime = None, maxTimeGap = None): 
 		if (maxTime == None) or (maxTime > self.__marketCloseTime): 
@@ -82,28 +83,6 @@ class OptionsData:
 		self.__writePairs()
 
 		return weighted_avg_rate
-	
-	def __writePairs(self):
-		self.__pairs.to_csv('Pairs.csv', index=False)
-
-		
-	def computeGreeks(self): 
-		self.df['delta'] = self.df.apply(
-			self.__computeDelta, 
-			axis = 1)
-		self.df['gamma'] = self.df.apply(
-			self.__computeGamma, 
-			axis = 1)
-		self.df['vega'] = self.df.apply(
-			self.__computeVega, 
-			axis = 1)
-		self.df['theta'] = self.df.apply(
-			self.__computeTheta, 
-			axis = 1)
-		self.df['rho'] = self.df.apply(
-			self.__computeRho, 
-			axis = 1)
-		print("Finished computing Greeks!")
 
 	# Interest Rate Helper Functions
 
@@ -119,7 +98,6 @@ class OptionsData:
 		oldRate = self.__avgRate
 		self.__avgRate = rate
 		return oldRate
-	
 
 	def __checkRowValidity(self, row, minTime = 0, maxTime = None, maxTimeGap = 600):
 		if (maxTime == None) or (maxTime > self.__marketCloseTime): 
@@ -149,9 +127,13 @@ class OptionsData:
 		r = - (np.log((S - C + P) / K)) / T
 		return r
 			
-	def __createInterestRateTable(self, smoothing_factor = 10): 
+	def __writePairs(self):
+		self.__pairs.to_csv('Pairs.csv', index=False)
+	
+	# Implied Volatility
+
+	def __createInterestRateTable(self, alpha = 0.2): 
 		numBuckets = math.floor(self.__marketCloseTime/900)
-		alpha = smoothing_factor/(numBuckets + 1)
 
 		raw_rates = []
 		for i in range(0, numBuckets): 
@@ -160,19 +142,20 @@ class OptionsData:
 		self.__interest_rates = []
 		ema_rate = raw_rates[0] 
 		self.__interest_rates.append(ema_rate)
-		ema_rate = 0.75 * raw_rates[1] + 0.25 * raw_rates[0] # since the first is bound to be more unstable
+		ema_rate = 0.5 * raw_rates[1] + 0.5 * raw_rates[0] # since the first is bound to be more unstable
+		self.__interest_rates.append(ema_rate)
 		for r in raw_rates[2:]:
 			ema_rate = alpha * r + (1 - alpha) * ema_rate
 			self.__interest_rates.append(ema_rate)
-		
+
 		"""plt.plot(raw_rates, label='Raw Rates')
 		plt.plot(self.__interest_rates, label='EMA Rates')
 		plt.legend()
 		plt.show()"""
 
-		print("Interest rates calculated!")
+		print('Interest rates calculated!')
 
-	def computeImpliedVolatilities(self, maxIterations = 100, tolerance = 0.005): 
+	def computeImpliedVolatilities(self, maxIterations = 100, tolerance = 0.00005): 
 		self.df['implied_vol'] = np.nan
 
 		self.__createInterestRateTable()
@@ -210,10 +193,30 @@ class OptionsData:
 
 			self.df.at[idx, 'implied_vol'] = iv
 		
-		print("IV calculations done!")
+		print('IV calculations done!')
 
     # Greeks
-	def __computeDelta(self ,row): 
+
+	def computeGreeks(self): 
+		self.df['delta'] = self.df.apply(
+			self.__computeDelta, 
+			axis = 1)
+		self.df['gamma'] = self.df.apply(
+			self.__computeGamma, 
+			axis = 1)
+		self.df['vega'] = self.df.apply(
+			self.__computeVega, 
+			axis = 1)
+		self.df['theta'] = self.df.apply(
+			self.__computeTheta, 
+			axis = 1)
+		self.df['rho'] = self.df.apply(
+			self.__computeRho, 
+			axis = 1)
+		
+		print('Finished computing Greeks!')
+
+	def __computeDelta(self, row): 
 		S = row['u_trade_px']
 		K = row['strike_price']
 		T = row['year_to_expiration']
@@ -453,7 +456,7 @@ class OptionsData:
 
 		print("Mispricings identified!")
 
-	def __computeImpliedVolEMA(self, alpha = 0.1): 
+	def __computeImpliedVolEMA(self, alpha = 0.01): 
 		impliedVolEMA = None
 		self.df['implied_vol_EMA'] = None
 
